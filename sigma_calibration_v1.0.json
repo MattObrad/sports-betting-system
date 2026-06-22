@@ -1,0 +1,42 @@
+{
+  "version": "2.0",
+  "generated_at": "2026-05-31T20:30:12Z",
+  "training_date_range": [
+    "2021-05-16",
+    "2024-10-20"
+  ],
+  "model_description": "Blended production model: 0.4*rolling5 + 0.6*season_avg (fallback rolling5 when no season_avg). Sigma = RMSE of (actual - blended) per minutes_last_5 bucket. Replaces v1.0, which was calibrated on the PURE rolling-5 model. Use with sigma_multiplier = 1.0 (the 1.35x fudge is dropped).",
+  "bucket_definition": {
+    "feature": "minutes_last_5",
+    "edges": [
+      15,
+      28
+    ],
+    "labels": [
+      "<15",
+      "15-28",
+      "28+"
+    ],
+    "fallback_label": "fallback_overall"
+  },
+  "models": {
+    "baseline_weighted_rolling_5__1.0": {
+      "fallback_overall": {
+        "sigma": 5.423164616402531,
+        "n": 17962
+      },
+      "<15": {
+        "sigma": 3.8102010327948426,
+        "n": 4578
+      },
+      "15-28": {
+        "sigma": 5.2839317113816255,
+        "n": 6659
+      },
+      "28+": {
+        "sigma": 6.578604707126763,
+        "n": 5723
+      }
+    }
+  }
+}

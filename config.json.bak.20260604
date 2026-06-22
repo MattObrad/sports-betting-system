@@ -1,0 +1,37 @@
+{
+  "betting": {
+    "min_edge_runs": 1.5,
+    "min_confidence": 0.55,
+    "bankroll_units": 100,
+    "n_sims": 10000,
+    "edge_threshold": 0.03,
+    "divergence_flag_threshold": 0.05
+  },
+  "model": {
+    "feature_version": "v1.0",
+    "ensemble_pkl": "models/saved/ensemble_v1.0.pkl",
+    "min_train_seasons": 4,
+    "include_covid": false
+  },
+  "twilio": {
+    "from_number": "",
+    "to_number": ""
+  },
+  "deploy": {
+    "host": "198.199.77.143",
+    "user": "picks",
+    "remote_dir": "/home/picks/models/",
+    "canary_threshold": 0.05
+  },
+  "prediction": {
+    "skip_shap_on_low_memory": true,
+    "paper_mode": false
+  },
+  "vps_db": {
+    "host": "198.199.77.143",
+    "port": 5432,
+    "database": "picksdb",
+    "user": "picksuser",
+    "password": "password"
+  }
+}

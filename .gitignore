@@ -1,0 +1,56 @@
+# Databases (large, machine-specific)
+*.db
+*.db-wal
+*.db-shm
+
+# Model artifacts (large binary)
+*.pkl
+models/saved/
+
+# Logs
+logs/
+*.log
+
+# Python cache
+*.pyc
+__pycache__/
+*.pyo
+
+# Virtual environment (huge, not needed in repo)
+venv/
+
+# Secrets and credentials
+.env
+*.env
+*.credentials
+
+# SSH keys and configs — NEVER commit these
+.ssh/
+
+# System/OS dotfiles
+.bash_logout
+.bashrc
+.profile
+.cache/
+.cloud-locale-test.skip
+
+# Postgres backup dumps (large binary)
+collectors/backups/
+*.sql.gz
+*.sql
+
+# Build artifacts / scratch
+*.bak
+*.bak.*
+echo
+
+# Temporary debug/diagnostic scripts (added during sessions)
+debug_*.py
+check_*.py
+fix_*.py
+test_*.py
+schema_check.py
+patch_crontab.py
+post_discord.py
+setup_git.sh
+fix_gitignore_and_push.sh

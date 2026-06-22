@@ -1,0 +1,56 @@
+{
+  "_comment": "Market anchoring confirmed no box-score edge exists. This system now focuses on arbitrage and information edges only. Low/no volume is correct behavior.",
+  "betting": {
+    "min_edge_prob": 0.06,
+    "min_model_prob": 0.60,
+    "edge_shrink": 0.60,
+    "min_agreement_thresholds": 2,
+    "props_to_model": ["Player Points"],
+    "max_odds_american": -300
+  },
+  "model": {
+    "name": "baseline_weighted_rolling_5",
+    "version": "1.0",
+    "n_lookback": 5,
+    "alpha": 0.4,
+    "decay": 0.6,
+    "sigma_multiplier": 1.0,
+    "blend_rolling_weight": 0.4,
+    "blend_season_weight": 0.6,
+    "sigma_calibration_path": "/home/picks/sigma_calibration_v1.0.json",
+    "calibration_path": "/home/picks/calibration_v1.0.pkl",
+    "sports_db_path": "/home/picks/sports.db",
+    "minutes_bucket_edges": [15, 28],
+    "minutes_bucket_labels": ["<15", "15-28", "28+"],
+    "sigma_fallback_label": "fallback_overall"
+  },
+  "vps_db": {
+    "host": "198.199.77.143",
+    "port": 5432,
+    "database": "picksdb",
+    "user": "picksuser",
+    "password": "password"
+  },
+  "notify": {
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": 587,
+    "gmail_address_env": "GMAIL_ADDRESS",
+    "gmail_app_password_env": "GMAIL_APP_PASSWORD",
+    "sms_to_env": "SMS_TO_ADDRESS"
+  },
+  "deploy": {
+    "host": "198.199.77.143",
+    "user": "root",
+    "remote_dir": "/home/picks/",
+    "remote_script": "predict_wnba.py"
+  },
+  "features": {
+    "game_total_market_type": "Total Points",
+    "game_total_outcome": "Over"
+  },
+  "prediction": {
+    "upcoming_floor": "2026-01-01",
+    "et_offset_hours": -4,
+    "min_prior_games": 1
+  }
+}
