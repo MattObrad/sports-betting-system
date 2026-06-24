@@ -113,6 +113,19 @@ CREATE TABLE IF NOT EXISTS props_snapshots (
     over_odds     INTEGER,
     under_odds    INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS props_snapshots_v2 (
+    id            SERIAL PRIMARY KEY,
+    event_id      VARCHAR(50) REFERENCES games(event_id),
+    snapshot_time TIMESTAMPTZ DEFAULT NOW(),
+    player_name   VARCHAR(100),
+    market_type   VARCHAR(50),
+    line          NUMERIC(6,2),
+    over_odds     INTEGER,
+    under_odds    INTEGER,
+    side          VARCHAR(10),
+    UNIQUE (event_id, player_name, market_type, line, snapshot_time, side)
+);
 """
 
 
@@ -150,11 +163,12 @@ def insert_snapshot(cur, event_id, market_type, outcome_label, line, odds):
     """, (event_id, market_type, outcome_label, line, odds))
 
 
-def insert_prop_snapshot(cur, event_id, player_name, market_type, line, over_odds, under_odds=None):
+def insert_prop_snapshot(cur, event_id, player_name, market_type, line, over_odds, side="", under_odds=None):
     cur.execute("""
-        INSERT INTO props_snapshots (event_id, player_name, market_type, line, over_odds, under_odds)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """, (event_id, player_name, market_type, line, over_odds, under_odds))
+        INSERT INTO props_snapshots_v2 (event_id, player_name, market_type, line, over_odds, under_odds, side)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (event_id, player_name, market_type, line, snapshot_time, side) DO NOTHING
+    """, (event_id, player_name, market_type, line, over_odds, under_odds, side))
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +295,7 @@ def process_props_for_event(cur, event_id):
 
             odds_am  = outcome.get("oddsAmerican")
             raw_line = outcome.get("line")
+            side     = outcome.get("label", "")
 
             if odds_am is None:
                 continue
@@ -288,7 +303,7 @@ def process_props_for_event(cur, event_id):
             over_odds = int(odds_am)
             line      = (raw_line / 1000) if raw_line else None
 
-            insert_prop_snapshot(cur, event_id, player_name, market_type, line, over_odds)
+            insert_prop_snapshot(cur, event_id, player_name, market_type, line, over_odds, side)
             rows += 1
 
     return rows, seen_offer_types
