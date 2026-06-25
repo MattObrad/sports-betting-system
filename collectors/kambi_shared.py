@@ -308,7 +308,9 @@ def process_props_for_event(cur, event_id):
         seen_offer_types.add(offer_type)
 
         for outcome in offer.get("outcomes", []):
-            player_name = outcome.get("participant")
+            player_name = outcome.get("participant") or (
+                outcome.get("label") if market_type.startswith("Team") else None
+            )
             if not player_name:
                 continue
 
