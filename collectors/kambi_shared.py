@@ -308,9 +308,17 @@ def process_props_for_event(cur, event_id):
         seen_offer_types.add(offer_type)
 
         for outcome in offer.get("outcomes", []):
-            player_name = outcome.get("participant") or (
-                outcome.get("label") if market_type.startswith("Team") else None
-            )
+            if outcome.get("participant"):
+                player_name = outcome.get("participant")
+            elif market_type.startswith("Team"):
+                # criterion_label is e.g. "DET Tigers to Score a Run - Inning 1";
+                # extract everything before " to " as the team name.
+                if " to " in criterion_label:
+                    player_name = criterion_label.split(" to ")[0].strip()
+                else:
+                    player_name = outcome.get("label")
+            else:
+                player_name = None
             if not player_name:
                 continue
 
