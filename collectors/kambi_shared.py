@@ -61,13 +61,25 @@ PROP_PATTERNS = [
     (re.compile(r"Rebounds By The Player",     re.I), "Player Rebounds"),
     (re.compile(r"Assists By The Player",      re.I), "Player Assists"),
     (re.compile(r"Three-Point Field Goals",    re.I), "Player Threes"),
-    # Baseball
-    (re.compile(r"Strikeout",                  re.I), "Player Strikeouts"),
-    (re.compile(r"Home Run",                   re.I), "Player Home Runs"),
-    (re.compile(r"Total Bases",                re.I), "Player Total Bases"),
-    (re.compile(r"\bRBI",                      re.I), "Player RBIs"),
-    (re.compile(r"Earned Run",                 re.I), "Player Earned Runs"),
-    (re.compile(r"\bHits?\b",                  re.I), "Player Hits"),
+    # Baseball — player props (Alt lines before main: "2+ Strikeouts thrown" also
+    # matches the main pattern, so Alt must win first)
+    (re.compile(r"\d\+\s*Strikeouts thrown",           re.I), "Player Strikeouts Alt"),
+    (re.compile(r"Strikeouts thrown by the Player",     re.I), "Player Strikeouts"),
+    (re.compile(r"Home Run",                           re.I), "Player Home Runs"),
+    (re.compile(r"Total Bases",                        re.I), "Player Total Bases"),
+    (re.compile(r"\bRBI",                              re.I), "Player RBIs"),
+    (re.compile(r"Earned Run",                         re.I), "Player Earned Runs"),
+    (re.compile(r"\d\+\s*Hits by the Player",          re.I), "Player Hits Alt"),
+    (re.compile(r"Total Hits by the Player",           re.I), "Player Hits"),
+    (re.compile(r"Stolen Bases? by the Player",        re.I), "Player Stolen Bases"),
+    (re.compile(r"Runs Scored by the Player",          re.I), "Player Runs"),
+    (re.compile(r"Doubles? by the Player",             re.I), "Player Doubles"),
+    (re.compile(r"Outs Recorded by the Player",        re.I), "Player Outs"),
+    # Baseball — inning/team markets (First 5 and First 3 before Inning 1)
+    (re.compile(r"Total Runs - First 5",               re.I), "Team Runs First 5"),
+    (re.compile(r"Total Runs - First 3",               re.I), "Team Runs First 3"),
+    (re.compile(r"Total Runs - Inning 1",              re.I), "Team Runs Inning 1"),
+    (re.compile(r"to Score a Run - Inning 1",          re.I), "Team Score Inning 1"),
     # American Football
     (re.compile(r"Passing Yards",              re.I), "Player Passing Yards"),
     (re.compile(r"Rushing Yards",              re.I), "Player Rushing Yards"),
