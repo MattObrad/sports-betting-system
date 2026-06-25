@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS props_snapshots_v2 (
     line          NUMERIC(6,2),
     over_odds     INTEGER,
     under_odds    INTEGER,
-    side          VARCHAR(10),
+    side          VARCHAR(50),
     UNIQUE (event_id, player_name, market_type, line, snapshot_time, side)
 );
 """
@@ -315,6 +315,8 @@ def process_props_for_event(cur, event_id):
             over_odds = int(odds_am)
             line      = (raw_line / 1000) if raw_line else None
 
+            if len(side) > 10:
+                print(f"[DEBUG] Long side label: '{side}' market={market_type} player={player_name}")
             insert_prop_snapshot(cur, event_id, player_name, market_type, line, over_odds, side)
             rows += 1
 
