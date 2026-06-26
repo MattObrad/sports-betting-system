@@ -332,23 +332,30 @@ def process_props_for_event(cur, event_id):
             print(f"[DEBUG TSI1] outcomes={_json.dumps(offer.get('outcomes', []))[:400]}")
 
         for outcome in offer.get("outcomes", []):
-            if outcome.get("participant"):
-                player_name = outcome.get("participant")
-            elif market_type.startswith("Team") or market_type.startswith("Tennis"):
-                # participant is None for team and several tennis market types.
-                # Priority:
-                #   1. "[Name] to <action>" → split on " to ", take left side.
-                #      Covers: "DET Tigers to Score...", "Bergs to win at least one set", etc.
-                #   2. "Total games won by [Name]" → extract player name after prefix.
-                #   3. Fallback: outcome.label (e.g. "Over"/"Under" for totals,
-                #      "Yes"/"No" for Yes/No markets, scoreline for Set Betting).
-                if " to " in criterion_label:
-                    player_name = criterion_label.split(" to ")[0].strip()
+            player_name = outcome.get("participant")
+            if not player_name:
+                if market_type.startswith("Team"):
+                    # MLB team markets: extract from criterion_label.
+                    # "DET Tigers to Score a Run - Inning 1" → "DET Tigers"
+                    if " to " in criterion_label:
+                        player_name = criterion_label.split(" to ")[0].strip()
+                    else:
+                        player_name = outcome.get("label")
+                elif market_type.startswith("Tennis"):
+                    # Tennis player markets: extract from criterion_label.
+                    # "Total games won by [Player]" → "[Player]"
+                    # "[Player] to win their first Service Game" → "[Player]"
+                    # "[Player] to win at least one set" → "[Player]"
+                    # Match-level markets (Total Games, Set Betting etc.)
+                    #   → use criterion_label itself as identifier
+                    if " by " in criterion_label:
+                        player_name = criterion_label.split(" by ")[-1].strip()
+                    elif " to win" in criterion_label:
+                        player_name = criterion_label.split(" to win")[0].strip()
+                    else:
+                        player_name = criterion_label
                 else:
-                    m = re.search(r"Total games won by (.+)", criterion_label, re.I)
-                    player_name = m.group(1).strip() if m else outcome.get("label")
-            else:
-                player_name = None
+                    player_name = None
             if not player_name:
                 continue
 
