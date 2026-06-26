@@ -307,6 +307,14 @@ def process_props_for_event(cur, event_id):
 
         seen_offer_types.add(offer_type)
 
+        if market_type == "Team Score Inning 1":
+            import json as _json
+            print(f"[DEBUG TSI1] event={event_id} criterion_label={criterion_label!r}")
+            print(f"[DEBUG TSI1] offer keys={list(offer.keys())}")
+            print(f"[DEBUG TSI1] criterion={_json.dumps(offer.get('criterion'))}")
+            print(f"[DEBUG TSI1] participants={offer.get('participants')}")
+            print(f"[DEBUG TSI1] outcomes={_json.dumps(offer.get('outcomes', []))[:400]}")
+
         for outcome in offer.get("outcomes", []):
             if outcome.get("participant"):
                 player_name = outcome.get("participant")
