@@ -87,6 +87,22 @@ PROP_PATTERNS = [
     (re.compile(r"Score 1st and Win",                  re.I), "Team Score First Win"),
     (re.compile(r"Total Runs Odd",                     re.I), "Team Runs Odd Even"),
     (re.compile(r"Most Hits",                          re.I), "Team Most Hits"),
+    # Tennis — anchored patterns first to avoid partial matches.
+    # participant is set for: Game Spread, Set Spread, Set Winner, Most Games.
+    # participant is None for totals (uses outcome.label) and player-specific
+    # markets (extracted from criterion_label in the outcome loop below).
+    (re.compile(r"^Total Games$",                      re.I), "Tennis Total Games"),
+    (re.compile(r"Total Games - Set \d+",              re.I), "Tennis Total Games Set 1"),
+    (re.compile(r"^Game Spread$",                      re.I), "Tennis Game Spread"),
+    (re.compile(r"^Set Spread$",                       re.I), "Tennis Set Spread"),
+    (re.compile(r"^Set Betting$",                      re.I), "Tennis Set Betting"),
+    (re.compile(r"^Total Sets$",                       re.I), "Tennis Total Sets"),
+    (re.compile(r"Total Number of Tiebreaks",          re.I), "Tennis Total Tiebreaks"),
+    (re.compile(r"^Most Games$",                       re.I), "Tennis Most Games"),
+    (re.compile(r"^Set \d+$",                          re.I), "Tennis Set Winner"),
+    (re.compile(r"Total games won by",                 re.I), "Tennis Player Games"),
+    (re.compile(r"to win at least one set",            re.I), "Tennis Win A Set"),
+    (re.compile(r"to win their first Service Game",    re.I), "Tennis First Service Game"),
     # American Football
     (re.compile(r"Passing Yards",              re.I), "Player Passing Yards"),
     (re.compile(r"Rushing Yards",              re.I), "Player Rushing Yards"),
@@ -318,13 +334,19 @@ def process_props_for_event(cur, event_id):
         for outcome in offer.get("outcomes", []):
             if outcome.get("participant"):
                 player_name = outcome.get("participant")
-            elif market_type.startswith("Team"):
-                # criterion_label is e.g. "DET Tigers to Score a Run - Inning 1";
-                # extract everything before " to " as the team name.
+            elif market_type.startswith("Team") or market_type.startswith("Tennis"):
+                # participant is None for team and several tennis market types.
+                # Priority:
+                #   1. "[Name] to <action>" → split on " to ", take left side.
+                #      Covers: "DET Tigers to Score...", "Bergs to win at least one set", etc.
+                #   2. "Total games won by [Name]" → extract player name after prefix.
+                #   3. Fallback: outcome.label (e.g. "Over"/"Under" for totals,
+                #      "Yes"/"No" for Yes/No markets, scoreline for Set Betting).
                 if " to " in criterion_label:
                     player_name = criterion_label.split(" to ")[0].strip()
                 else:
-                    player_name = outcome.get("label")
+                    m = re.search(r"Total games won by (.+)", criterion_label, re.I)
+                    player_name = m.group(1).strip() if m else outcome.get("label")
             else:
                 player_name = None
             if not player_name:
