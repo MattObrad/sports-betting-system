@@ -53,7 +53,13 @@ PRIMARY_MARKET_MAP = {
 # Maps patterns in criterion labels to clean market_type names for props.
 # More-specific patterns must come before broader ones (e.g. PRA before Points).
 PROP_PATTERNS = [
-    # Basketball
+    # Basketball — alt lines (X+ yes/no, Player Occurrence Line) MUST precede main patterns
+    (re.compile(r"\d\+\s*Points, Rebounds & Assists By The Player",   re.I), "Player PRA Alt"),
+    (re.compile(r"\d\+\s*Points Scored By The Player",                re.I), "Player Points Alt"),
+    (re.compile(r"\d\+\s*Rebounds By The Player",                     re.I), "Player Rebounds Alt"),
+    (re.compile(r"\d\+\s*Assists By The Player",                      re.I), "Player Assists Alt"),
+    (re.compile(r"\d\+\s*Three-Point Field Goals Made By The Player", re.I), "Player Threes Alt"),
+    # Basketball — main lines
     (re.compile(r"Points, Rebounds & Assists", re.I), "Player PRA"),
     (re.compile(r"double-double",              re.I), "Player Double-Double"),
     (re.compile(r"triple-double",              re.I), "Player Triple-Double"),
@@ -87,6 +93,10 @@ PROP_PATTERNS = [
     (re.compile(r"Score 1st and Win",                  re.I), "Team Score First Win"),
     (re.compile(r"Total Runs Odd",                     re.I), "Team Runs Odd Even"),
     (re.compile(r"Most Hits",                          re.I), "Team Most Hits"),
+    # Basketball — team/game markets
+    (re.compile(r"Total Points - Including Overtime",  re.I), "Team Total Points"),
+    (re.compile(r"Total Points Odd",                   re.I), "Team Total Points Odd Even"),
+    (re.compile(r"Result at end of 4th Quarter",       re.I), "Team Quarter Result"),
     # Tennis — anchored patterns first to avoid partial matches.
     # participant is set for: Game Spread, Set Spread, Set Winner, Most Games.
     # participant is None for totals (uses outcome.label) and player-specific
@@ -335,12 +345,12 @@ def process_props_for_event(cur, event_id):
             player_name = outcome.get("participant")
             if not player_name:
                 if market_type.startswith("Team"):
-                    # MLB team markets: extract from criterion_label.
-                    # "DET Tigers to Score a Run - Inning 1" → "DET Tigers"
+                    # Baseball: "DET Tigers to Score a Run - Inning 1" -> "DET Tigers"
+                    # Basketball totals: no " to " -> use criterion_label as identifier
                     if " to " in criterion_label:
                         player_name = criterion_label.split(" to ")[0].strip()
                     else:
-                        player_name = outcome.get("label")
+                        player_name = criterion_label
                 elif market_type.startswith("Tennis"):
                     # Tennis player markets: extract from criterion_label.
                     # "Total games won by [Player]" → "[Player]"
