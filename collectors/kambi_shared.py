@@ -82,7 +82,7 @@ PROP_PATTERNS = [
     (re.compile(r"Runs Scored by the Player",          re.I), "Player Runs"),
     (re.compile(r"Doubles? by the Player",             re.I), "Player Doubles"),
     (re.compile(r"Outs Recorded by the Player",        re.I), "Player Outs"),
-    # Baseball — inning/team markets (First 5 and First 3 before Inning 1)
+    # Baseball — inning/team markets (most-specific first; anchored where overlap risk exists)
     (re.compile(r"Total Runs - First 5",               re.I), "Team Runs First 5"),
     (re.compile(r"Total Runs - First 3",               re.I), "Team Runs First 3"),
     (re.compile(r"Total Runs - Inning 1",              re.I), "Team Runs Inning 1"),
@@ -93,6 +93,15 @@ PROP_PATTERNS = [
     (re.compile(r"Score 1st and Win",                  re.I), "Team Score First Win"),
     (re.compile(r"Total Runs Odd",                     re.I), "Team Runs Odd Even"),
     (re.compile(r"Most Hits",                          re.I), "Team Most Hits"),
+    # Baseball — F5/F3 derivative markets (anchored; not captured before)
+    (re.compile(r"^Spread - First 5 Innings$",         re.I), "Spread F5"),
+    (re.compile(r"^Moneyline - First 5 Innings$",      re.I), "Moneyline F5"),
+    (re.compile(r"^Lead After 5 Innings",              re.I), "Lead After 5"),
+    (re.compile(r"^Spread - First 3 Innings$",         re.I), "Spread F3"),
+    (re.compile(r"^Moneyline - First 3 Innings$",      re.I), "Moneyline F3"),
+    (re.compile(r"^Lead After 3 Innings",              re.I), "Lead After 3"),
+    # Inning 1 3-way — strict anchor; cannot match "Total Runs - Inning 1"
+    (re.compile(r"^Inning 1$",                         re.I), "Inning 1 Result"),
     # Basketball — team/game markets
     (re.compile(r"Total Points - Including Overtime",  re.I), "Team Total Points"),
     (re.compile(r"Total Points Odd",                   re.I), "Team Total Points Odd Even"),
@@ -127,6 +136,14 @@ PROP_PATTERNS = [
     (re.compile(r"Shots? on (Goal|Net)",       re.I), "Player Shots"),
     (re.compile(r"Hockey Assists?",            re.I), "Player Assists"),
 ]
+
+# Market types that route to props_snapshots_v2 but don't start with "Team",
+# so the participant extraction block needs to cover them explicitly.
+MLB_GAME_MARKETS = frozenset({
+    "Spread F5", "Moneyline F5", "Lead After 5",
+    "Spread F3", "Moneyline F3", "Lead After 3",
+    "Inning 1 Result",
+})
 
 DDL = """
 CREATE TABLE IF NOT EXISTS games (
@@ -333,31 +350,24 @@ def process_props_for_event(cur, event_id):
 
         seen_offer_types.add(offer_type)
 
-        if market_type == "Team Score Inning 1":
-            import json as _json
-            print(f"[DEBUG TSI1] event={event_id} criterion_label={criterion_label!r}")
-            print(f"[DEBUG TSI1] offer keys={list(offer.keys())}")
-            print(f"[DEBUG TSI1] criterion={_json.dumps(offer.get('criterion'))}")
-            print(f"[DEBUG TSI1] participants={offer.get('participants')}")
-            print(f"[DEBUG TSI1] outcomes={_json.dumps(offer.get('outcomes', []))[:400]}")
-
         for outcome in offer.get("outcomes", []):
             player_name = outcome.get("participant")
             if not player_name:
-                if market_type.startswith("Team"):
-                    # Baseball: "DET Tigers to Score a Run - Inning 1" -> "DET Tigers"
-                    # Basketball totals: no " to " -> use criterion_label as identifier
+                if market_type.startswith("Team") or market_type in MLB_GAME_MARKETS:
+                    # "[Team] to Score a Run - Inning 1"  → "[Team]"  (via " to ")
+                    # "[Team] to Score 1st and Win"        → "[Team]"  (via " to ")
+                    # "Total Runs by BAL Orioles"          → "BAL Orioles" (via " by ")
+                    # "Spread - First 5 Innings" etc.      → criterion_label (no split token)
                     if " to " in criterion_label:
                         player_name = criterion_label.split(" to ")[0].strip()
+                    elif " by " in criterion_label:
+                        player_name = criterion_label.split(" by ")[-1].strip()
                     else:
                         player_name = criterion_label
                 elif market_type.startswith("Tennis"):
-                    # Tennis player markets: extract from criterion_label.
-                    # "Total games won by [Player]" → "[Player]"
+                    # "Total games won by [Player]"            → "[Player]"
                     # "[Player] to win their first Service Game" → "[Player]"
-                    # "[Player] to win at least one set" → "[Player]"
-                    # Match-level markets (Total Games, Set Betting etc.)
-                    #   → use criterion_label itself as identifier
+                    # Match-level markets (Total Games, Set Betting etc.) → criterion_label
                     if " by " in criterion_label:
                         player_name = criterion_label.split(" by ")[-1].strip()
                     elif " to win" in criterion_label:
@@ -379,8 +389,6 @@ def process_props_for_event(cur, event_id):
             over_odds = int(odds_am)
             line      = (raw_line / 1000) if raw_line else None
 
-            if len(side) > 10:
-                print(f"[DEBUG] Long side label: '{side}' market={market_type} player={player_name}")
             insert_prop_snapshot(cur, event_id, player_name, market_type, line, over_odds, side)
             rows += 1
 
