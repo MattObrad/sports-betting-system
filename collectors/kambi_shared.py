@@ -93,6 +93,26 @@ PROP_PATTERNS = [
     (re.compile(r"Score 1st and Win",                  re.I), "Team Score First Win"),
     (re.compile(r"Total Runs Odd",                     re.I), "Team Runs Odd Even"),
     (re.compile(r"Most Hits",                          re.I), "Team Most Hits"),
+    # Baseball — full-game Run Line (BUG FIX: was whitelisted in
+    # PRIMARY_MARKET_MAP for the OLD odds_snapshots table, but that whitelist
+    # is never consulted here -- classify_prop_market() (PROP_PATTERNS) is
+    # the only thing that routes rows into props_snapshots_v2, and it had no
+    # entry for "Run Line" at all. Outcomes have participant set (team name),
+    # so rows were never skipped -- they silently fell through to the
+    # "Player Prop" default and sat there mislabeled with a team name in
+    # player_name, indistinguishable from real player props. Same structure
+    # as Spread F5 below (Handicap betOfferType, team-name outcomes) --
+    # verified working there, so no row-building change needed, only the
+    # missing classification.
+    (re.compile(r"^Run Line$",                         re.I), "Run Line"),
+    # Baseball — full-game Moneyline (same bug class: whitelisted in
+    # PRIMARY_MARKET_MAP for odds_snapshots, but PROP_PATTERNS only had the
+    # F5/F3 period-specific variants, not the bare label -- 62,593 rows found
+    # sitting in "Player Prop" with team names as player_name/side. Anchored
+    # exact match so the 3 pitcher-contingent variants ("Moneyline (X must
+    # start)") deliberately keep falling through -- different, niche product,
+    # not addressed here.
+    (re.compile(r"^Moneyline$",                        re.I), "Moneyline"),
     # Baseball — F5/F3 derivative markets (anchored; not captured before)
     (re.compile(r"^Spread - First 5 Innings$",         re.I), "Spread F5"),
     (re.compile(r"^Moneyline - First 5 Innings$",      re.I), "Moneyline F5"),
