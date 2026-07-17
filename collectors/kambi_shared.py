@@ -219,8 +219,13 @@ CREATE TABLE IF NOT EXISTS props_snapshots_v2 (
     over_odds     INTEGER,
     under_odds    INTEGER,
     side          VARCHAR(50),
+    is_main_line  BOOLEAN,
     UNIQUE (event_id, player_name, market_type, line, snapshot_time, side)
 );
+
+-- Migration for pre-existing databases: additive, nullable -- historical rows
+-- stay NULL (unknown main/alt status), only forward rows get a real value.
+ALTER TABLE props_snapshots_v2 ADD COLUMN IF NOT EXISTS is_main_line BOOLEAN;
 """
 
 
@@ -258,12 +263,34 @@ def insert_snapshot(cur, event_id, market_type, outcome_label, line, odds):
     """, (event_id, market_type, outcome_label, line, odds))
 
 
-def insert_prop_snapshot(cur, event_id, player_name, market_type, line, over_odds, side="", under_odds=None):
+def insert_prop_snapshot(cur, event_id, player_name, market_type, line, over_odds, side="", under_odds=None, is_main_line=None):
     cur.execute("""
-        INSERT INTO props_snapshots_v2 (event_id, player_name, market_type, line, over_odds, under_odds, side)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO props_snapshots_v2 (event_id, player_name, market_type, line, over_odds, under_odds, side, is_main_line)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (event_id, player_name, market_type, line, snapshot_time, side) DO NOTHING
-    """, (event_id, player_name, market_type, line, over_odds, under_odds, side))
+    """, (event_id, player_name, market_type, line, over_odds, under_odds, side, is_main_line))
+
+
+def detect_main_line(offer, outcome):
+    """Detect Kambi's MAIN_LINE tag, checking both known tag locations.
+
+    Football/basketball (e.g. Point Spread) tags the whole betOffer; baseball
+    (e.g. Run Line) tags the individual outcome, since one offer bundles the
+    main line with ~9 bidirectional alternate lines under the same criterion
+    label. Detect which location applies per market rather than assuming one.
+    Returns True/False when a tags list is present at either level, else None
+    (unknown -- don't guess when Kambi's response shape is unexpected).
+    """
+    offer_tags   = offer.get("tags")
+    outcome_tags = outcome.get("tags")
+
+    if offer_tags is not None and "MAIN_LINE" in offer_tags:
+        return True
+    if outcome_tags is not None:
+        return "MAIN_LINE" in outcome_tags
+    if offer_tags is not None:
+        return False
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -419,10 +446,12 @@ def process_props_for_event(cur, event_id):
             if odds_am is None:
                 continue
 
-            over_odds = int(odds_am)
-            line      = (raw_line / 1000) if raw_line else None
+            over_odds    = int(odds_am)
+            line         = (raw_line / 1000) if raw_line else None
+            is_main_line = detect_main_line(offer, outcome)
 
-            insert_prop_snapshot(cur, event_id, player_name, market_type, line, over_odds, side)
+            insert_prop_snapshot(cur, event_id, player_name, market_type, line, over_odds, side,
+                                  is_main_line=is_main_line)
             rows += 1
 
     return rows, seen_offer_types
