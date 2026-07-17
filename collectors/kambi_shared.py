@@ -113,6 +113,19 @@ PROP_PATTERNS = [
     # start)") deliberately keep falling through -- different, niche product,
     # not addressed here.
     (re.compile(r"^Moneyline$",                        re.I), "Moneyline"),
+    # Basketball / Football — full-game Point Spread (same bug class as Run
+    # Line/Moneyline above: whitelisted in PRIMARY_MARKET_MAP for the old
+    # odds_snapshots table, but PROP_PATTERNS had no entry, so every NFL/NCAAF
+    # spread row fell through to "Player Prop" with the team name as
+    # player_name/side. Confirmed live: 8,224 NFL + 25,920 NCAAF rows sitting
+    # mislabeled at time of fix, lines in the expected -50..+50 range.
+    (re.compile(r"^Point Spread$",                     re.I), "Point Spread"),
+    # Hockey — full-game Puck Line (same bug class; NHL off-season at time of
+    # fix so unverifiable live, but the code-level gap was identical).
+    (re.compile(r"^Puck Line$",                        re.I), "Puck Line"),
+    # Soccer — Asian Handicap (same bug class; no live soccer board at time
+    # of fix so unverifiable live, code-level gap identical).
+    (re.compile(r"^Asian Handicap$",                   re.I), "Asian Handicap"),
     # Baseball — F5/F3 derivative markets (anchored; not captured before)
     (re.compile(r"^Spread - First 5 Innings$",         re.I), "Spread F5"),
     (re.compile(r"^Moneyline - First 5 Innings$",      re.I), "Moneyline F5"),
