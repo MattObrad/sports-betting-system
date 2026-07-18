@@ -136,13 +136,19 @@ def _get_pos(obj: dict) -> str:
 
 
 def fetch_daily_games(date_str: str) -> list[dict]:
+    # gameType=R in the REQUEST now gets rejected by MLB's API with a 406
+    # (isolated 2026-07-18: any gameType param, singular or plural, any casing,
+    # any header combination, triggers it -- sportId+date alone still works).
+    # Filter to regular season CLIENT-SIDE on the response's gameType field
+    # instead, so the regular-season-only guarantee doesn't depend on a
+    # request param MLB's API may reject again in the future.
     data = http_get(f"{MLB_API}/schedule", {
         "sportId": 1,
         "date": date_str,
-        "gameType": "R",
         "hydrate": "probablePitcher,team",  # lineups hydration removed (MLB API now returns 406)
     })
-    return [g for block in data.get("dates", []) for g in block.get("games", [])]
+    games = [g for block in data.get("dates", []) for g in block.get("games", [])]
+    return [g for g in games if g.get("gameType") == "R"]
 
 
 def parse_daily_game(g: dict, game_date: str) -> dict:

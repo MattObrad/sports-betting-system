@@ -216,14 +216,20 @@ def calc_fip(hr, bb, hbp, k, ip, season: int) -> float | None:
 
 
 def fetch_schedule(start_date: str, end_date: str) -> list[dict]:
+    # gameType=R in the REQUEST now gets rejected by MLB's API with a 406
+    # (isolated 2026-07-18: any gameType param, singular or plural, any casing,
+    # any header combination, triggers it -- sportId+date alone still works).
+    # Filter to regular season CLIENT-SIDE on the response's gameType field
+    # instead, so the regular-season-only guarantee doesn't depend on a
+    # request param MLB's API may reject again in the future.
     data = http_get(f"{MLB_API}/schedule", {
         "sportId": 1,
         "startDate": start_date,
         "endDate": end_date,
-        "gameType": "R",
         "hydrate": "team,venue,linescore",
     })
-    return [g for block in data.get("dates", []) for g in block.get("games", [])]
+    games = [g for block in data.get("dates", []) for g in block.get("games", [])]
+    return [g for g in games if g.get("gameType") == "R"]
 
 
 def parse_schedule_row(g: dict) -> dict:
