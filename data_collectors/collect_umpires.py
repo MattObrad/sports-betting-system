@@ -562,7 +562,10 @@ def run_assignment_pass(start_date: str, end_date: str):
     assigned = 0
     for g in games:
         game_pk = g["gamePk"]
-        gdate   = g.get("gameDate", "")[:10]
+        # BUG FIX: same class as collect_statcast.py -- gameDate is a UTC
+        # timestamp, truncating it gives the wrong day for games starting
+        # after ~8pm ET (crosses midnight UTC). Use MLB's officialDate.
+        gdate   = g.get("officialDate") or g.get("gameDate", "")[:10]
         if game_pk in done_mlb:
             continue
         ump_id, ump_name = extract_hp_umpire(g)

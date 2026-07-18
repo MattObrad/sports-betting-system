@@ -233,7 +233,12 @@ def fetch_schedule(start_date: str, end_date: str) -> list[dict]:
 
 
 def parse_schedule_row(g: dict) -> dict:
-    gdate = g.get("gameDate", "")[:10]
+    # BUG FIX: gameDate is a UTC timestamp -- truncating it to 10 chars gives
+    # the UTC calendar date, which is WRONG for any game starting after ~8pm
+    # ET (crosses midnight UTC, landing on the next day). MLB's own
+    # officialDate field is the correct "baseball day" the game belongs to;
+    # use it, falling back to the UTC truncation only if it's ever absent.
+    gdate = g.get("officialDate") or g.get("gameDate", "")[:10]
     teams = g.get("teams", {})
     home, away = teams.get("home", {}), teams.get("away", {})
     h_score = home.get("score")
@@ -715,7 +720,7 @@ def run_boxscore_pass(start_date: str, end_date: str):
                 break
 
             game_pk   = g["gamePk"]
-            game_date = g.get("gameDate", "")[:10]
+            game_date = g.get("officialDate") or g.get("gameDate", "")[:10]  # same fix as parse_schedule_row
             season    = int(game_date[:4])
 
             try:
