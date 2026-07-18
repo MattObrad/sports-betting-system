@@ -93,6 +93,14 @@ PROP_PATTERNS = [
     (re.compile(r"Score 1st and Win",                  re.I), "Team Score First Win"),
     (re.compile(r"Total Runs Odd",                     re.I), "Team Runs Odd Even"),
     (re.compile(r"Most Hits",                          re.I), "Team Most Hits"),
+    # Baseball -- full-game Total Runs (BUG FIX: same class as Run Line/
+    # Moneyline/Point Spread. Whitelisted in PRIMARY_MARKET_MAP for the old
+    # odds_snapshots table, but PROP_PATTERNS only had the more specific F5/F3/
+    # Inning1/Odd-Even/by-team variants, not the bare label -- confirmed live
+    # 2026-07-18: 'Total Runs' (11 offers/event) falls to the "Player Prop"
+    # default. Anchored exact match so it doesn't shadow the more specific
+    # patterns above (those already matched first via re.search regardless).
+    (re.compile(r"^Total Runs$",                       re.I), "Total Runs"),
     # Baseball — full-game Run Line (BUG FIX: was whitelisted in
     # PRIMARY_MARKET_MAP for the OLD odds_snapshots table, but that whitelist
     # is never consulted here -- classify_prop_market() (PROP_PATTERNS) is
@@ -434,6 +442,13 @@ def process_props_for_event(cur, event_id):
                         player_name = criterion_label.split(" to win")[0].strip()
                     else:
                         player_name = criterion_label
+                elif market_type == "Total Runs":
+                    # Game-level Over/Under, no team participant -- the two
+                    # "sides" of this market ARE Over/Under, so use the
+                    # outcome's own label (matches the `side` value set below,
+                    # same self-consistent convention as team markets using
+                    # side == player_name).
+                    player_name = outcome.get("label", "")
                 else:
                     player_name = None
             if not player_name:
