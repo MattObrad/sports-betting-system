@@ -21,6 +21,28 @@ from pathlib import Path
 _DIR = Path(__file__).resolve().parent
 _LOG_DIR = _DIR / "logs"
 
+# Postgres (props_snapshots_v2) config -- same as kambi_shared.py
+_PG_CONFIG = {
+    "host": "localhost", "dbname": "picksdb", "user": "picksuser",
+    "password": "password", "port": 5432,
+}
+
+# Core market_type/league pairs that should ALWAYS have rows in-season if the
+# collector pipeline is healthy -- the exact class of gap the handicap-market
+# bugs (Run Line/Moneyline/Point Spread/Puck Line/Asian Handicap) exposed.
+# NHL/soccer entries are informational-only (off-season for large stretches of
+# the year) -- flagged but not treated as a hard failure.
+_HARD_MARKET_CHECKS = [
+    ("Run Line", "MLB"),
+    ("Moneyline", "MLB"),
+]
+_SOFT_MARKET_CHECKS = [
+    ("Point Spread", "NFL"),
+    ("Point Spread", "NCAAF"),
+    ("Puck Line", "NHL"),
+    ("Asian Handicap", None),  # any soccer league
+]
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-7s  %(message)s",
@@ -148,6 +170,78 @@ def _wnba_boxscores_fresh(max_stale_days: int = 8) -> bool:
         return False
 
 
+# ── new checks: the exact class of gap that hid the 2026-06-29 MLB API break ──
+
+def _stale_scheduled_games(max_hours: int = 6) -> list[tuple]:
+    """Games whose scheduled start was more than max_hours ago but are still
+    'Scheduled' -- the exact signature of the 3-week silent status-updater
+    break (games started, played, finished, and mlb_data.db never noticed).
+    Returns list of (game_id, game_date, game_time_utc, hours_stale)."""
+    try:
+        con = sqlite3.connect(_MLB_DB)
+        rows = con.execute("""
+            SELECT game_id, game_date, game_time_utc FROM games
+            WHERE status = 'Scheduled' AND game_time_utc IS NOT NULL
+        """).fetchall()
+        con.close()
+    except Exception:
+        return []
+    now = datetime.now(timezone.utc)
+    stale = []
+    for gid, gdate, gtime in rows:
+        try:
+            start = datetime.fromisoformat(gtime.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        hours = (now - start).total_seconds() / 3600
+        if hours > max_hours:
+            stale.append((gid, gdate, gtime, round(hours, 1)))
+    return stale
+
+
+def _market_type_zero_rows(market_type: str, league: str | None, days: int = 7) -> int | None:
+    """Row count for a market_type (optionally scoped to a league) in the last
+    N days from props_snapshots_v2. Returns None if the DB is unreachable."""
+    try:
+        import psycopg2
+    except ImportError:
+        return None
+    try:
+        conn = psycopg2.connect(**_PG_CONFIG, connect_timeout=10)
+        cur = conn.cursor()
+        if league:
+            cur.execute("""
+                SELECT count(*) FROM props_snapshots_v2 p
+                JOIN games g ON p.event_id = g.event_id
+                WHERE p.market_type = %s AND g.league = %s
+                  AND p.snapshot_time > now() - interval %s
+            """, (market_type, league, f"{days} days"))
+        else:
+            cur.execute("""
+                SELECT count(*) FROM props_snapshots_v2
+                WHERE market_type = %s AND snapshot_time > now() - interval %s
+            """, (market_type, f"{days} days"))
+        n = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return n
+    except Exception:
+        return None
+
+
+def _collector_last_run_age_hours(log_name: str) -> float | None:
+    """Hours since the log file's own most recent date-stamped line. None if
+    the log doesn't exist or can't be parsed."""
+    log_path = _LOG_DIR / log_name
+    if not log_path.exists():
+        return None
+    try:
+        mtime = datetime.fromtimestamp(log_path.stat().st_mtime, tz=timezone.utc)
+        return (datetime.now(timezone.utc) - mtime).total_seconds() / 3600
+    except Exception:
+        return None
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def run_checks() -> list[str]:
@@ -199,6 +293,59 @@ def run_checks() -> list[str]:
             f"Predictions running on stale rolling stats. "
             f"Check: `/home/picks/logs/wehoop_boxscores.log`"
         )
+
+    # --- Stale-Scheduled games: the exact signature of the 2026-06-29 break ---
+    stale_games = _stale_scheduled_games(max_hours=6)
+    if stale_games:
+        sample = ", ".join(str(g[0]) for g in stale_games[:5])
+        oldest = max(g[3] for g in stale_games)
+        failures.append(
+            f"🔴 **Stale Scheduled games** — {len(stale_games)} game(s) started >6h ago but "
+            f"still show status='Scheduled' (oldest: {oldest}h). This is the exact signature "
+            f"of the 2026-06-29 MLB Stats API break (gameType=R 406, undetected for 3 weeks). "
+            f"Sample game_ids: {sample}. Check the boxscore pass in mlb_statcast.log."
+        )
+
+    # --- Whitelisted market_type collection gaps (the handicap-bug class) ---
+    for market_type, league in _HARD_MARKET_CHECKS:
+        n = _market_type_zero_rows(market_type, league)
+        if n is None:
+            failures.append(
+                f"⚠️ **Market check unreachable** — could not query props_snapshots_v2 for "
+                f"'{market_type}'{f' ({league})' if league else ''}. Postgres connection issue?"
+            )
+        elif n == 0:
+            failures.append(
+                f"🔴 **Silent collection gap** — market_type='{market_type}'"
+                f"{f' league={league}' if league else ''} has ZERO rows in the last 7 days. "
+                f"This is the same failure class as the Run Line/Moneyline/Point Spread "
+                f"misclassification bugs -- a market silently stopped landing correctly."
+            )
+
+    soft_notes = []
+    for market_type, league in _SOFT_MARKET_CHECKS:
+        n = _market_type_zero_rows(market_type, league)
+        if n == 0:
+            soft_notes.append(f"{market_type}{f'/{league}' if league else ''}")
+    if soft_notes:
+        log.info("Soft market checks at zero (informational, likely off-season): %s",
+                  ", ".join(soft_notes))
+
+    # --- Key collector staleness (statcast/status updater, odds collectors) ---
+    collector_max_age = {
+        "mlb_statcast.log": 14,   # runs 2x/day (7am, noon UTC)
+        "mlb_lineups.log": 26,    # runs 1x/day (7:30am UTC)
+        "core.log": 2,            # runs hourly
+    }
+    for log_name, max_age in collector_max_age.items():
+        age = _collector_last_run_age_hours(log_name)
+        if age is None:
+            failures.append(f"⚠️ **{log_name}** — log file missing or unreadable, can't verify last run.")
+        elif age > max_age:
+            failures.append(
+                f"🔴 **{log_name}** — last touched {age:.1f}h ago (expected <{max_age}h). "
+                f"Collector may be stalled or its cron may have stopped firing."
+            )
 
     return failures
 
